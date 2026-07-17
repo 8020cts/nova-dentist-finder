@@ -4,7 +4,7 @@ from datetime import datetime, timezone, timedelta
 
 # Page configurations
 st.set_page_config(
-    page_title="r/nova Pediatric Dentist Finder",
+    page_title="r/nova Pediatric Dentist Finder..",
     page_icon="🦷",
     layout="wide"
 )
