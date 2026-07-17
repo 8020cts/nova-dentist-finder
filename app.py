@@ -1,9 +1,7 @@
 import streamlit as st
-import requests
-import xml.etree.ElementTree as ET
-from html import unescape
+import urllib.parse
 
-# 1. Page Configuration & Styling
+# 1. Page Configuration
 st.set_page_config(
     page_title="NOVA Pediatric Dentistry Finder",
     page_icon="🦷",
@@ -11,70 +9,36 @@ st.set_page_config(
 )
 
 st.title("r/nova Pediatric Dentistry Finder")
-st.markdown("Find recent pediatric dental recommendations in Northern Virginia safely via Google News Index.")
+st.markdown("Select a timeframe below to search **r/nova** directly for pediatric dentist recommendations.")
 
-# 2. Sidebar Filters
-st.sidebar.header("Search Filters")
-
-# Google News RSS uses the "when:" operator directly inside the query string
+# 2. Timeframe Selection
 timeframe_options = {
-    "Past 24 Hours": "when:1d",
-    "Past Week": "when:7d",
-    "Past Month": "when:30d",
-    "Past Year": "when:1y",
-    "All Time": ""
+    "Past 24 Hours": "day",
+    "Past Week": "week",
+    "Past Month": "month",
+    "Past Year": "year",
+    "All Time": "all"
 }
 
-selected_label = st.sidebar.selectbox("Select Timeframe", list(timeframe_options.keys()), index=2)
-timeframe_query = timeframe_options[selected_label]
+selected_label = st.selectbox("Choose Timeframe:", list(timeframe_options.keys()), index=2)
+timeframe = timeframe_options[selected_label]
 
-# 3. Search Execution
-if st.button("Search r/nova", type="primary"):
-    # Target pediatric dentists strictly within r/nova
-    base_query = 'site:reddit.com/r/nova "pediatric" (dentist OR dentistry)'
-    
-    # Append the modern timeline constraint if selected
-    full_query = f"{base_query} {timeframe_query}".strip()
-    
-    # Use the stable Google News RSS endpoint
-    url = f"https://news.google.com/rss/search?q={requests.utils.quote(full_query)}&hl=en-US&gl=US&ceid=US:en"
-        
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
-    
-    with st.spinner("Searching for recommendations..."):
-        try:
-            response = requests.get(url, headers=headers)
-            
-            if response.status_code == 200:
-                # Parse the XML response
-                root = ET.fromstring(response.content)
-                items = root.findall(".//item")
-                
-                if not items:
-                    st.info(f"No recent threads found matching within the **{selected_label}**.")
-                else:
-                    st.success(f"Found matches via index from the {selected_label.lower()}!")
-                    
-                    for item in items:
-                        raw_title = item.find("title").text if item.find("title") is not None else "No Title"
-                        # Clean up Google's source tags appended to the titles
-                        clean_title = raw_title.split(" - ")[0].split(" : ")[0]
-                        
-                        post_url = item.find("link").text if item.find("link") is not None else "#"
-                        pub_date = item.find("pubDate").text if item.find("pubDate") is not None else "Unknown Date"
-                        
-                        if pub_date != "Unknown Date" and "," in pub_date:
-                            pub_date = " ".join(pub_date.split(" ")[1:4])
+st.markdown("---")
 
-                        # Render Results Card
-                        with st.container(border=True):
-                            st.markdown(f"### [{unescape(clean_title)}]({post_url})")
-                            st.markdown(f"📅 **Indexed Date:** {pub_date}")
-            else:
-                st.error(f"Failed to pull results. Google Index returned status code: {response.status_code}")
-                st.info("Tip: If running frequently from the cloud, the hosting platform's IP may be temporarily throttled.")
-                
-        except Exception as e:
-            st.error(f"An unexpected parsing error occurred: {e}")
+# 3. Build the Redirect Link
+# This uses Reddit's native exact-match syntax for /r/nova
+query = 'pediatric ("dentist" OR "dentistry")'
+encoded_query = urllib.parse.quote(query)
+
+# Native web search URL layout
+reddit_search_url = f"https://www.reddit.com/r/nova/search/?q={encoded_query}&restrict_sr=1&sort=new&t={timeframe}"
+
+# 4. Interactive Call-to-Action Card
+with st.container(border=True):
+    st.subheader("🚀 Ready to Search")
+    st.write(f"This will launch an unfiltered search inside **r/nova** tracking posts from the **{selected_label.lower()}**.")
+    
+    # Render a clean button that opens in a new tab safely
+    st.link_button("Open Search on Reddit ↗", reddit_search_url, type="primary", use_container_width=True)
+
+st.info("💡 **Why this method?** Because your browser opens the link directly, Reddit will never throw a 403 or 400 error, ensuring you always see the freshest, real-time results.")
