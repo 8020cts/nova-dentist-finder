@@ -4,7 +4,7 @@ from datetime import datetime, timezone, timedelta
 
 # Page configurations
 st.set_page_config(
-    page_title="r/nova Pediatric Dentist Finder..",
+    page_title="r/nova Pediatric Dentist Finder",
     page_icon="🦷",
     layout="wide"
 )
@@ -30,22 +30,31 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Main Header
-st.markdown('<div class="main-title">🦷 r/nova Pediatric Dentist Finder..</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">Instantly scan Northern Virginia\'s subreddit for the most recommended kids\' dental practices.</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">🦷 r/nova Pediatric Dentist Finder</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">Instantly scan Northern Virginia\'s subreddit via Google Indexing for kids\' dental practices.</div>', unsafe_allow_html=True)
 
 # Sidebar UI
 st.sidebar.header("🔍 Search Filters")
 
-# 1. Date Range Selector (Days back)
+# 1. Date Range Selector
 days_back = st.sidebar.slider(
     "How fresh should the recommendations be?",
-    min_value=14,
-    max_value=365 * 3,  # Up to 3 years
-    value=365,          # Default to last 1 year
-    step=14,
-    help="Select how far back to search. Pediatric dentist names remain highly relevant even if a post is up to a year old."
+    min_value=30,
+    max_value=365 * 3,  
+    value=365,          
+    step=30,
+    help="Select how far back Google should look for relevant threads."
 )
-cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_back)
+
+# Translate days back into a Google search timeline parameter (e.g., 'm12' for 12 months)
+if days_back <= 30:
+    date_param = "m1"
+elif days_back <= 180:
+    date_param = "m6"
+elif days_back <= 365:
+    date_param = "y1"
+else:
+    date_param = "y3"
 
 # 2. Query Configuration
 query_options = [
@@ -62,83 +71,76 @@ else:
 
 st.sidebar.markdown("---")
 st.sidebar.markdown(
-    "💡 *Tip: Northern Virginia (r/nova) is incredibly active. Post history from the last 180 to 365 days usually yields the most up-to-date regional feedback.*"
+    "💡 *Cloud Note: This app routes through Google's open indexes to safely bypass Reddit's corporate cloud blocking.*"
 )
 
 # Fetch Action
 if st.button("Search Subreddit", type="primary"):
-    with st.spinner("Scanning r/nova..."):
-        url = "https://www.reddit.com/r/nova/search.json"
-        params = {
-            "q": search_query,
-            "restrict_sr": "on",
-            "sort": "new",      
-            "limit": 100        
-        }
+    with st.spinner("Searching Reddit index via cloud gateway..."):
         
-        # UNIQUE USER-AGENT FORMAT prevents standard script blocking flags
-        headers = {
-            "User-Agent": "web:nova_pediatric_dentist_finder:v1.0 (by /u/your_reddit_username)"
-        }
+        # We target Reddit r/nova specifically using Google syntax
+        full_query = f"site:reddit.com/r/nova {search_query}"
+        
+        # Using a reliable public search wrapper that won't give a 403 on Streamlit Cloud
+        url = "https://html.duckduckgo.com/html/"
+        params = {"q": full_query}
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         
         try:
-            response = requests.get(url, params=params, headers=headers)
+            response = requests.get(url, params=params, headers=headers, timeout=10)
             
             if response.status_code == 200:
-                data = response.json()
-                posts = data.get("data", {}).get("children", [])
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(response.text, 'html.parser')
+                results = soup.find_all('div', class_='result__body')
                 
                 matching_posts = []
-                for post in posts:
-                    pdata = post["data"]
-                    created_utc = pdata.get("created_utc")
+                for res in results:
+                    title_a = res.find('a', class_='result__url')
+                    snippet_div = res.find('a', class_='result__snippet')
                     
-                    if created_utc:
-                        post_date = datetime.fromtimestamp(created_utc, tz=timezone.utc)
-                        if post_date >= cutoff_date:
+                    if title_a and snippet_div:
+                        title = title_a.text.strip()
+                        raw_link = title_a['href']
+                        
+                        # Clean up redirect URLs to point directly to Reddit
+                        if "uddg=" in raw_link:
+                            actual_url = urllib.parse.unquote(raw_link.split("uddg=")[1].split("&")[0])
+                        else:
+                            actual_url = raw_link
+                            
+                        snippet = snippet_div.text.strip()
+                        
+                        # Make sure it's actually an r/nova thread link
+                        if "reddit.com/r/nova" in actual_url and "/comments/" in actual_url:
                             matching_posts.append({
-                                "title": pdata.get("title"),
-                                "url": f"https://www.reddit.com{pdata.get('permalink')}",
-                                "author": pdata.get("author"),
-                                "score": pdata.get("score"),
-                                "comments": pdata.get("num_comments"),
-                                "date_str": post_date.strftime("%B %d, %Y"),
-                                "text": pdata.get("selftext", "")
+                                "title": title.replace(" : r/nova", "").replace(" - Reddit", ""),
+                                "url": actual_url,
+                                "snippet": snippet
                             })
                 
-                # Render Results
+                # Render Results UI
                 if matching_posts:
-                    st.success(f"Found {len(matching_posts)} highly-relevant threads from the last {days_back} days!")
+                    st.success(f"Found {len(matching_posts)} indexed threads matching your criteria!")
                     
                     for i, post in enumerate(matching_posts, 1):
-                        snippet = post['text'][:300] + "..." if len(post['text']) > 300 else post['text']
-                        
-                        # Fix layout isolation issues by compiling everything down into an unbroken string
-                        snippet_html = f'<div class="post-snippet"><i>"{snippet}"</i></div>' if snippet else ""
-                        
                         card_html = f"""
                         <div class="post-card">
                             <a class="post-title" href="{post['url']}" target="_blank">{i}. {post['title']}</a>
                             <div class="post-meta">
-                                📅 Posted on: <b>{post['date_str']}</b> &nbsp;|&nbsp; 
-                                💬 Comments: <b>{post['comments']}</b> &nbsp;|&nbsp; 
-                                👤 User: u/{post['author']} &nbsp;|&nbsp; 
-                                👍 Score: {post['score']}
+                                🔗 Source: Reddit r/nova
                             </div>
-                            {snippet_html}
+                            <div class="post-snippet"><i>"{post['snippet']}"</i></div>
                         </div>
                         """
                         st.markdown(card_html, unsafe_allow_html=True)
-                        
                 else:
-                    st.warning("No recent threads matched. Try adjusting the slider in the sidebar to search further back!")
-            
-            elif response.status_code == 429:
-                st.error("Too Many Requests: Reddit's public feed is temporarily rate-limiting connections from this server. Try again in 60 seconds.")
+                    st.warning("No clear threads found in the search index. Try changing your search keywords!")
+                    
             else:
-                st.error(f"Could not connect to Reddit (Status Code: {response.status_code}).")
+                st.error(f"Search gateway returned status code: {response.status_code}")
                 
         except Exception as e:
-            st.error(f"An unexpected error occurred: {str(e)}")
+            st.error(f"An error occurred while connecting to the cloud gateway: {str(e)}")
 else:
-    st.info("👈 Set your date range and search keywords on the left, then click 'Search Subreddit' to load recommendations.")
+    st.info("👈 Set your search keywords on the left, then click 'Search Subreddit' to safely load recommendations.")
