@@ -30,7 +30,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Main Header
-st.markdown('<div class="main-title">🦷 r/nova Pediatric Dentist Finder</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">🦷 r/nova Pediatric Dentist Finder..</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-title">Instantly scan Northern Virginia\'s subreddit for the most recommended kids\' dental practices.</div>', unsafe_allow_html=True)
 
 # Sidebar UI
