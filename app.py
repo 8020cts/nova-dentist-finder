@@ -41,7 +41,7 @@ days_back = st.sidebar.slider(
     "How fresh should the recommendations be?",
     min_value=14,
     max_value=365 * 3,  # Up to 3 years
-    value=365,         # Default to last 1 year
+    value=365,          # Default to last 1 year
     step=14,
     help="Select how far back to search. Pediatric dentist names remain highly relevant even if a post is up to a year old."
 )
@@ -68,18 +68,17 @@ st.sidebar.markdown(
 # Fetch Action
 if st.button("Search Subreddit", type="primary"):
     with st.spinner("Scanning r/nova..."):
-        # Reddit Search JSON Endpoint
         url = "https://www.reddit.com/r/nova/search.json"
         params = {
             "q": search_query,
             "restrict_sr": "on",
-            "sort": "new",      # Fetch newest first so we can filter down to our target date range
-            "limit": 100        # Max results Reddit allows per request
+            "sort": "new",      
+            "limit": 100        
         }
         
-        # We must use a authentic-looking User-Agent to bypass standard scraper blockers
+        # UNIQUE USER-AGENT FORMAT prevents standard script blocking flags
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            "User-Agent": "web:nova_pediatric_dentist_finder:v1.0 (by /u/your_reddit_username)"
         }
         
         try:
@@ -114,6 +113,9 @@ if st.button("Search Subreddit", type="primary"):
                     for i, post in enumerate(matching_posts, 1):
                         snippet = post['text'][:300] + "..." if len(post['text']) > 300 else post['text']
                         
+                        # Fix layout isolation issues by compiling everything down into an unbroken string
+                        snippet_html = f'<div class="post-snippet"><i>"{snippet}"</i></div>' if snippet else ""
+                        
                         card_html = f"""
                         <div class="post-card">
                             <a class="post-title" href="{post['url']}" target="_blank">{i}. {post['title']}</a>
@@ -123,22 +125,20 @@ if st.button("Search Subreddit", type="primary"):
                                 👤 User: u/{post['author']} &nbsp;|&nbsp; 
                                 👍 Score: {post['score']}
                             </div>
+                            {snippet_html}
+                        </div>
                         """
                         st.markdown(card_html, unsafe_allow_html=True)
-                        if snippet:
-                            st.markdown(f'<div class="post-snippet"><i>"{snippet}"</i></div>', unsafe_allow_html=True)
-                        st.markdown("</div>", unsafe_allow_html=True)
                         
                 else:
                     st.warning("No recent threads matched. Try adjusting the slider in the sidebar to search further back!")
             
             elif response.status_code == 429:
-                st.error("Too Many Requests: Reddit's public feed is temporarily rate-limiting us. Try again in 60 seconds.")
+                st.error("Too Many Requests: Reddit's public feed is temporarily rate-limiting connections from this server. Try again in 60 seconds.")
             else:
                 st.error(f"Could not connect to Reddit (Status Code: {response.status_code}).")
                 
         except Exception as e:
             st.error(f"An unexpected error occurred: {str(e)}")
 else:
-    # Landing instructions
     st.info("👈 Set your date range and search keywords on the left, then click 'Search Subreddit' to load recommendations.")
