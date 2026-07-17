@@ -1,44 +1,24 @@
 import streamlit as st
 import urllib.parse
 
-# 1. Page Configuration
-st.set_page_config(
-    page_title="NOVA Pediatric Dentistry Finder",
-    page_icon="🦷",
-    layout="centered"
-)
+st.title("🦷 NOVA Pediatric Dentist Finder")
+st.write("Find recent recommendations from r/nova.")
 
-st.title("r/nova Pediatric Dentistry Finder")
-st.markdown("Select a timeframe below to search **r/nova** directly for pediatric dentist recommendations.")
-
-# 2. Timeframe Selection
-timeframe_options = {
-    "Past 24 Hours": "day",
-    "Past Week": "week",
-    "Past Month": "month",
-    "Past Year": "year",
-    "All Time": "all"
-}
-
-selected_label = st.selectbox("Choose Timeframe:", list(timeframe_options.keys()), index=2)
-timeframe = timeframe_options[selected_label]
-
-st.markdown("---")
-
-# 3. Build the Redirect Link
-# This uses Reddit's native exact-match syntax for /r/nova
+# User inputs
+timeframe = st.selectbox("How recent?", ["day", "week", "month", "year", "all"])
 query = 'pediatric ("dentist" OR "dentistry")'
-encoded_query = urllib.parse.quote(query)
 
-# Native web search URL layout
-reddit_search_url = f"https://www.reddit.com/r/nova/search/?q={encoded_query}&restrict_sr=1&sort=new&t={timeframe}"
+# Build the URL that Reddit natively supports
+# This is NOT scraping; it's just a standard web link.
+base_url = "https://www.reddit.com/r/nova/search/"
+params = {
+    "q": query,
+    "restrict_sr": "1",
+    "sort": "new",
+    "t": timeframe
+}
+search_url = f"{base_url}?{urllib.parse.urlencode(params)}"
 
-# 4. Interactive Call-to-Action Card
-with st.container(border=True):
-    st.subheader("🚀 Ready to Search")
-    st.write(f"This will launch an unfiltered search inside **r/nova** tracking posts from the **{selected_label.lower()}**.")
-    
-    # Render a clean button that opens in a new tab safely
-    st.link_button("Open Search on Reddit ↗", reddit_search_url, type="primary", use_container_width=True)
-
-st.info("💡 **Why this method?** Because your browser opens the link directly, Reddit will never throw a 403 or 400 error, ensuring you always see the freshest, real-time results.")
+if st.button("Search on Reddit"):
+    # st.link_button makes the user's browser handle the request
+    st.link_button("View Results on Reddit", search_url)
